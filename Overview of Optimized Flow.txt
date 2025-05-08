@@ -1,0 +1,139 @@
+Overview of Optimized Flow
+
+1. Upload CSV file from web app
+2. Save CSV to temp folder on server
+3. Bulk load into tmp\_table using LOAD DATA LOCAL INFILE
+4. Run stored procedure to validate and transfer data to master and error tables
+5. Clean up tmp\_table
+
+
+
+Step-by-Step Implementation
+
+1. Frontend: File Upload (.csv Only)
+
+Use a basic upload UI (e.g., with Blazor, Razor Pages, or MVC):
+
+HTML Example:
+
+html
+<form method="post" enctype="multipart/form-data">
+    <input type="file" name="csvFile" accept=".csv" />
+    <button type="submit">Upload</button>
+</form>
+
+
+Controller Action:
+
+csharp
+[HttpPost]
+public async Task<IActionResult> UploadCsv(IFormFile csvFile)
+{
+    if (csvFile == null || !csvFile.FileName.EndsWith(".csv"))
+        return BadRequest("Only CSV files are allowed.");
+
+    var filePath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".csv");
+
+    using (var stream = System.IO.File.Create(filePath))
+    {
+        await csvFile.CopyToAsync(stream);
+    }
+
+    await _csvProcessor.ProcessCsvAsync(filePath);
+    System.IO.File.Delete(filePath);
+
+    return Ok("Upload and processing complete.");
+}
+
+
+
+2. Backend: Bulk Load CSV to tmp\_table
+
+Create a service CsvProcessor.cs:
+
+csharp
+
+public class CsvProcessor
+{
+    private readonly string _connectionString = "Server=localhost;Database=yourdb;Uid=root;Pwd=yourpwd;AllowLoadLocalInfile=true;";
+
+    public async Task ProcessCsvAsync(string filePath)
+    {
+        using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+
+        // Step 1: Load CSV into tmp_table
+        var loadCmd = new MySqlCommand
+        {
+            Connection = conn,
+            CommandText = @"LOAD DATA LOCAL INFILE @file 
+                            INTO TABLE tmp_table 
+                            FIELDS TERMINATED BY ',' 
+                            ENCLOSED BY '\"' 
+                            LINES TERMINATED BY '\n' 
+                            IGNORE 1 LINES 
+                            (col1, col2, col3, ...)"
+        };
+        loadCmd.Parameters.AddWithValue("@file", filePath);
+        await loadCmd.ExecuteNonQueryAsync();
+
+        // Step 2: Run validation stored procedure
+        var procCmd = new MySqlCommand("CALL ValidateAndInsert()", conn);
+        await procCmd.ExecuteNonQueryAsync();
+    }
+}
+
+3. SQL: Stored Procedure for Validation
+
+This is where validation and inserts are done in MySQL for speed.
+
+Example:
+
+sql
+
+DELIMITER $$
+
+CREATE PROCEDURE ValidateAndInsert()
+BEGIN
+    -- Insert valid data into master
+    INSERT INTO master_table (col1, col2, col3)
+    SELECT col1, col2, col3
+    FROM tmp_table
+    WHERE col1 IS NOT NULL AND col2 REGEXP '^[0-9]+$';
+
+    -- Insert invalid data into error table
+    INSERT INTO error_table (col1, col2, col3, error_reason)
+    SELECT col1, col2, col3,
+           CASE 
+               WHEN col1 IS NULL THEN 'col1 is null'
+               WHEN col2 NOT REGEXP '^[0-9]+$' THEN 'col2 not numeric'
+               ELSE 'Unknown error'
+           END
+    FROM tmp_table
+    WHERE col1 IS NULL OR col2 NOT REGEXP '^[0-9]+$';
+
+    -- Clean up tmp_table
+    DELETE FROM tmp_table;
+END $$
+
+DELIMITER ;
+
+
+Note: Replace col1, col2, col3 and their validations with your actual columns and business rules.
+
+
+Optional Enhancements
+
+Add indexes on tmp\_table if you do filtering in the stored proc
+Log batch info (file name, date/time) for auditing
+Partition large tables by date for long-term scale
+
+Final Benefits
+
+| Change                      | Performance Gain       |
+| --------------------------- | ---------------------- |
+| Excel → CSV                 | \~5× faster parsing    |
+| MySqlBulkInsert → LOAD DATA | \~20–50× faster writes |
+| C# validation → SQL SP      | \~10× faster logic     |
+| Insert batching             | Less memory + faster   |
+
