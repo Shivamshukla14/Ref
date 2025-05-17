@@ -20,9 +20,17 @@ print(first_report)
 # Prepare the second report
 # Group by LOANACCTNO and Advice Month to calculate totals
 second_report = (filtered_due_df.groupby(['LOANACCTNO', 'Advice Month'])
-                 .agg(Total_Due_Amount=('Due Amount', 'sum'),
-                     Collected_Amount=('Collected Amount', 'sum'))
+                 .agg(Total_Due_Amount=('Due Amount', 'sum'))
                  .reset_index())
+
+# Merge with Allocation_Collection to get the collected amounts
+allocation_summary = (Allocation_Collection
+                      .groupby(['Loan Account #', 'Allocation Month'])  # Assuming you have a column for month in Allocation_Collection
+                      .agg(Collected_Amount=('Collected Amount', 'sum'))
+                      .reset_index())
+
+# Merge the second report with the allocation summary
+second_report = pd.merge(second_report, allocation_summary, left_on='LOANACCTNO', right_on='Loan Account #', how='left')
 
 # Calculate Due Collection for Month
 second_report['Due_Collection'] = second_report['Total_Due_Amount'] == second_report['Collected_Amount']
