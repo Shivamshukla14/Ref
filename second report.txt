@@ -1,0 +1,24 @@
+import pandas as pd
+
+# Load your DataFrame, say df
+df['Advice Date'] = pd.to_datetime(df['Advice Date'])
+df['MonthYear'] = df['Advice Date'].dt.to_period('M')
+
+# Deduplicate to get unique DueAmount per Advice Ref#
+unique_due = df.drop_duplicates(subset=['Advice Ref#'])[['Advice Ref#', 'LOANACCTNO', 'DueAmount', 'MonthYear']]
+
+# Sum collected per Advice Ref#
+collected = df.groupby('Advice Ref#')['Collected Amount'].sum().reset_index(name='CollectedTotal')
+
+# Merge
+combined = unique_due.merge(collected, on='Advice Ref#', how='left')
+
+# Final aggregation
+report = combined.groupby('MonthYear').agg(
+    Total_Due=('DueAmount', 'sum'),
+    Total_Collected=('CollectedTotal', 'sum'),
+    LANs=('LOANACCTNO', lambda x: ', '.join(sorted(set(x))))
+).reset_index()
+
+# Convert MonthYear to string if needed
+report['MonthYear'] = report['MonthYear'].astype(str)
