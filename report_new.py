@@ -1,43 +1,143 @@
 import pandas as pd
+import re
+from datetime import datetime
+from rapidfuzz import fuzz
+import unidecode
 
-# Sample DataFrames (replace these with your actual data)
-# Due_df = pd.read_csv('path_to_due_df.csv')
-# Allocation_Collection = pd.read_csv('path_to_allocation_collection.csv')
+# ------------------ Load and Normalize ------------------ #
+df = pd.read_csv("customer_data.csv")
 
-# Filter Due_df for charge code 9
-filtered_due_df = Due_df[Due_df['Charge Code'] == 9]
+# Normalize PAN
+df['pan'] = df['pan'].astype(str).str.strip().str.upper()
 
-# Merge with Allocation_Collection to get the required columns
-merged_df = pd.merge(filtered_due_df, Allocation_Collection, left_on='Advice Ref#', right_on='Receipt Ref #', how='left')
+# Normalize DOB with multiple format support
+def normalize_dob(dob_str):
+    if pd.isna(dob_str):
+        return None
+    formats = ["%d-%m-%Y", "%d/%m/%Y", "%m/%d/%Y", "%Y-%m-%d"]
+    for fmt in formats:
+        try:
+            return datetime.strptime(dob_str.strip(), fmt).date()
+        except:
+            continue
+    return None
 
-# Prepare the first report
-first_report = merged_df[['LOANACCTNO', 'Due Amount', 'Advice Ref#', 'Advice Date', 'Allocation Date', 'Receipt Ref #', 'Collected Amount']]
+df['dob'] = df['dob'].astype(str).apply(normalize_dob)
 
-# Display the first report
-print("First Report:")
-print(first_report)
+# ------------------ PAN Validation ------------------ #
+def is_valid_pan(pan):
+    """
+    Validates a PAN based on structure and excludes test/dummy PANs like 'AAAAA...'
+    """
+    if not isinstance(pan, str):
+        return False
+    pan = pan.strip().upper()
+    # PAN must follow structural format and cannot start with 'AAAAA'
+    if re.fullmatch(r'^[A-Z]{3}[PCHABGJLFT][A-Z][0-9]{4}[A-Z]$', pan):
+        return not pan.startswith('AAAAA')
+    return False
 
-# Prepare the second report
-# Group by LOANACCTNO and Advice Month to calculate totals
-second_report = (filtered_due_df.groupby(['LOANACCTNO', 'Advice Month'])
-                 .agg(Total_Due_Amount=('Due Amount', 'sum'))
-                 .reset_index())
 
-# Merge with Allocation_Collection to get the collected amounts
-allocation_summary = (Allocation_Collection
-                      .groupby(['Loan Account #', 'Allocation Month'])  # Assuming you have a column for month in Allocation_Collection
-                      .agg(Collected_Amount=('Collected Amount', 'sum'))
-                      .reset_index())
+# ------------------ Normalize Name and Org ------------------ #
+def normalize_name(name):
+    if pd.isna(name):
+        return ''
+    name = unidecode.unidecode(name.lower())
+    name = re.sub(r'[^a-z\s]', '', name)
+    name = re.sub(r'\s+', ' ', name).strip()
+    return name
 
-# Merge the second report with the allocation summary
-second_report = pd.merge(second_report, allocation_summary, left_on='LOANACCTNO', right_on='Loan Account #', how='left')
+df['first_name_norm'] = df['first_name'].apply(normalize_name)
+df['last_name_norm'] = df['last_name'].apply(normalize_name)
+df['organization_name_norm'] = df['organization_name'].apply(normalize_name)
 
-# Calculate Due Collection for Month
-second_report['Due_Collection'] = second_report['Total_Due_Amount'] == second_report['Collected_Amount']
+# Combine for full name
+df['full_name'] = (df['first_name_norm'] + ' ' + df['last_name_norm']).str.strip()
 
-# Calculate Overdue
-second_report['Overdue'] = second_report.apply(lambda x: max(0, x['Collected_Amount'] - x['Total_Due_Amount']), axis=1)
+# ------------------ REPORT 1: Valid PAN with Multiple UCICs ------------------ #
+valid_pan_df = df[df['pan_valid']]
 
-# Display the second report
-print("\nSecond Report:")
-print(second_report)
+# Find PANs assigned to multiple UCICs
+multi_ucic_by_pan = (
+    valid_pan_df.groupby('pan')
+    .filter(lambda x: x['ucic'].nunique() > 1)
+    .sort_values(['pan', 'ucic'])
+)
+
+multi_ucic_by_pan.to_csv("01_valid_pan_multiple_ucic.csv", index=False)
+
+# ------------------ REPORT 2: Similar Name + DOB, Different UCIC ------------------ #
+invalid_pan_df = df[~df['pan_valid']]
+
+name_dob_candidates = invalid_pan_df[
+    invalid_pan_df['full_name'].notnull() & invalid_pan_df['dob'].notnull()
+].copy()
+
+# Create a similarity cluster
+def cluster_similar_names(df, threshold=85):
+    clusters = []
+    used = set()
+
+    for i, row_i in df.iterrows():
+        if i in used:
+            continue
+        group = [i]
+        name_i, dob_i = row_i['full_name'], row_i['dob']
+
+        for j, row_j in df.loc[df.index > i].iterrows():
+            if j in used:
+                continue
+            name_j, dob_j = row_j['full_name'], row_j['dob']
+
+            if dob_i == dob_j and fuzz.token_sort_ratio(name_i, name_j) >= threshold:
+                group.append(j)
+                used.add(j)
+        if len(group) > 1:
+            clusters.append(df.loc[group])
+            used.update(group)
+    return clusters
+
+name_dob_clusters = cluster_similar_names(name_dob_candidates)
+
+# Save to CSV
+for i, group in enumerate(name_dob_clusters, 1):
+    group.to_csv(f"02_similar_name_dob_diff_ucic_cluster_{i}.csv", index=False)
+
+# ------------------ REPORT 3: Similar Org Name + DOB, Different UCIC ------------------ #
+org_dob_candidates = invalid_pan_df[
+    invalid_pan_df['organization_name_norm'].notnull() & invalid_pan_df['dob'].notnull()
+].copy()
+
+def cluster_similar_orgs(df, threshold=85):
+    clusters = []
+    used = set()
+
+    for i, row_i in df.iterrows():
+        if i in used:
+            continue
+        group = [i]
+        name_i, dob_i = row_i['organization_name_norm'], row_i['dob']
+
+        for j, row_j in df.loc[df.index > i].iterrows():
+            if j in used:
+                continue
+            name_j, dob_j = row_j['organization_name_norm'], row_j['dob']
+
+            if dob_i == dob_j and fuzz.token_sort_ratio(name_i, name_j) >= threshold:
+                group.append(j)
+                used.add(j)
+        if len(group) > 1:
+            clusters.append(df.loc[group])
+            used.update(group)
+    return clusters
+
+org_dob_clusters = cluster_similar_orgs(org_dob_candidates)
+
+for i, group in enumerate(org_dob_clusters, 1):
+    group.to_csv(f"03_similar_org_dob_diff_ucic_cluster_{i}.csv", index=False)
+
+# ------------------ Summary ------------------ #
+print("✅ Reports generated:")
+print("1. 01_valid_pan_multiple_ucic.csv")
+print("2. 02_similar_name_dob_diff_ucic_cluster_X.csv")
+print("3. 03_similar_org_dob_diff_ucic_cluster_X.csv")
