@@ -17,12 +17,13 @@ def load_and_clean_data():
     # Normalize and clean data
     for df in [df_master, df_new]:
         df.fillna("", inplace=True)
-        df['dob'] = pd.to_datetime(df.get('dob', df.get('birth_date')), errors='coerce', dayfirst=True).dt.date
+        dob_column = 'dob' if 'dob' in df.columns else 'birth_date'
+        df['dob'] = pd.to_datetime(df[dob_column], errors='coerce', dayfirst=True).dt.date
         df['first_name'] = df['first_name'].str.strip().str.upper()
         df['last_name'] = df['last_name'].str.strip().str.upper()
-        df['organization_name'] = df['organization_name'].str.strip().str.upper()
-        df['pan'] = df['pan'].str.strip().str.upper()
-        df['aadhar_no'] = df['aadhar_no'].astype(str).str.extract(r'(\d{4})$', expand=False).fillna("")
+        df['organization_name'] = df.get('organization_name', '').str.strip().str.upper()
+        df['pan'] = df.get('pan', '').str.strip().str.upper()
+        df['aadhar_no'] = df.get('aadhar_no', '').astype(str).str.extract(r'(\d{4})$', expand=False).fillna("")
 
     return df_master, df_new
 
@@ -36,55 +37,58 @@ def is_valid_pan(pan):
 # ---------- Step 3: Similarity Matching Logic ---------- #
 
 def find_ucic_match(new_row, df_master):
-    pan = new_row['pan']
-    dob = new_row['dob']
-    first_name = new_row['first_name']
-    last_name = new_row['last_name']
-    org_name = new_row['organization_name']
-    aadhar_suffix = new_row['aadhar_no']
+    pan = new_row.get('pan', '').upper()
+    dob = new_row.get('dob')
+    first_name = new_row.get('first_name', '').strip().upper()
+    last_name = new_row.get('last_name', '').strip().upper()
+    org_name = new_row.get('organization_name', '').strip().upper()
+    aadhar_suffix = new_row.get('aadhar_no', '')
     party_tc = new_row.get('party_tc', '').strip().upper()
 
+    # Exclude master rows with missing UCIC
+    df_master_valid = df_master[df_master['ucic'].str.strip() != ""]
+
     # 1. PAN match if valid
-    if is_valid_pan(pan):
-        matched = df_master[df_master['pan'] == pan]
+    if pan and is_valid_pan(pan):
+        matched = df_master_valid[df_master_valid['pan'] == pan]
         if not matched.empty:
             return matched.iloc[0]['ucic']
 
     # Determine individual or organization
     is_individual = (party_tc == "PERSON")
 
-    # 2. Match individuals
     if is_individual:
-        # Aadhar + DOB match
-        if aadhar_suffix:
-            matched = df_master[
-                (df_master['aadhar_no'] == aadhar_suffix) &
-                (df_master['dob'] == dob) &
-                (df_master['party_tc'].str.upper() == 'PERSON')
+        # 2a. Match by Aadhar + DOB
+        if aadhar_suffix and dob:
+            matched = df_master_valid[
+                (df_master_valid['aadhar_no'] == aadhar_suffix) &
+                (df_master_valid['dob'] == dob) &
+                (df_master_valid['party_tc'].str.upper() == 'PERSON')
             ]
             if not matched.empty:
                 return matched.iloc[0]['ucic']
 
-        # Fuzzy name + DOB match
-        potential = df_master[
-            (df_master['dob'] == dob) &
-            (df_master['party_tc'].str.upper() == 'PERSON')
+        # 2b. Fuzzy match by name + DOB
+        potential = df_master_valid[
+            (df_master_valid['dob'] == dob) &
+            (df_master_valid['party_tc'].str.upper() == 'PERSON')
         ]
         for _, row in potential.iterrows():
-            score = token_sort_ratio(f"{first_name} {last_name}", f"{row['first_name']} {row['last_name']}")
-            if score >= 90:
+            name_score = token_sort_ratio(f"{first_name} {last_name}", f"{row['first_name']} {row['last_name']}")
+            if name_score >= 90:
                 return row['ucic']
 
-    # 3. Match organizations by fuzzy org_name + DOB
     else:
-        potential = df_master[
-            (df_master['dob'] == dob) &
-            (df_master['party_tc'].str.upper() != 'PERSON')
-        ]
-        for _, row in potential.iterrows():
-            score = token_sort_ratio(org_name, row['organization_name'])
-            if score >= 90:
-                return row['ucic']
+        # 3. Organization match by fuzzy org_name + DOB
+        if org_name and dob:
+            potential = df_master_valid[
+                (df_master_valid['dob'] == dob) &
+                (df_master_valid['party_tc'].str.upper() != 'PERSON')
+            ]
+            for _, row in potential.iterrows():
+                org_score = token_sort_ratio(org_name, row['organization_name'])
+                if org_score >= 90:
+                    return row['ucic']
 
     return None
 
