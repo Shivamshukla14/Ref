@@ -1,0 +1,54 @@
+flowchart TD
+
+%% Entity One
+subgraph Entity_One [Entity One]
+
+    %% Section 1
+    subgraph lms_pull_daily
+        A1[lms_pull]
+    end
+
+    %% Section 2
+    subgraph onedata_app_1[onedata_app]
+        B1[update_agreementdetails]
+    end
+
+    %% Section 3
+    subgraph onedata_mtd
+        C1[onedata_refresh] --> C2[bounce_adapter_loader] --> C3[appcant_coapp_adapter_loader] --> C4[adjusted_dpd_buckets_loader] --> C5[variable_tagging] --> C6[dpd_x_plus_variable_adapter_loader] --> C7[industry_details_loader] --> C8[risk_dashboard_map_update] --> C9[forecloserAdapter] --> C10[property_details_adapter_loader] --> C11[additional_variable]
+    end
+
+    %% Section 4
+    subgraph onedata_daily
+        D1[onedata_daily] --> D2[mortgage_daily_view]
+    end
+
+    %% Section 5
+    subgraph cashflow
+        E1[cashflow_adapter_loader] --> E2[cashflow_dashboard_loader] --> E3[cashflow_additional_variable]
+    end
+
+    %% Section 6
+    subgraph onedata_app_2[onedata_app]
+        F1[app_agreement_adapter_loader] --> F2[mortgage_disbal_details] --> F3[ehfl_dlp_applications_loader]
+    end
+
+    %% Section-level transitions
+    A1 --> B1
+    B1 --> C1
+    C11 --> D1
+    D2 --> E1
+    E3 --> F1
+end
+
+%% Entity Two
+subgraph Entity_Two [Entity Two]
+
+    %% Section 7
+    subgraph entity_mortgage
+        G1[agreements_mortgage_update] --> G2[agreements_trades_daily_mortgage_update] --> G3[agreements_trades_mortgage_update]
+    end
+end
+
+%% Transition between Entity One and Entity Two
+F3 --> G1
