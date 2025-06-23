@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# Log file path
+LOG_FILE="/var/log/conda_auto_clean.log"
+
+# Set cache path
+CACHE_DIR="/root/anaconda2/pkgs"
+
+# Set threshold in percentage
+THRESHOLD=70
+
+# Get current usage of the disk containing cache dir
+USAGE=$(df "$CACHE_DIR" | awk 'NR==2 {print $5}' | sed 's/%//')
+
+# Get current timestamp
+TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+
+# Log and clean if needed
+if [ "$USAGE" -ge "$THRESHOLD" ]; then
+    echo "$TIMESTAMP - Cache usage is at ${USAGE}%. Running conda clean..." >> "$LOG_FILE"
+    conda clean --all -y >> "$LOG_FILE" 2>&1
+    echo "$TIMESTAMP - Clean completed." >> "$LOG_FILE"
+else
+    echo "$TIMESTAMP - Cache usage is at ${USAGE}%. No action taken." >> "$LOG_FILE"
+fi
