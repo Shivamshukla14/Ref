@@ -1,0 +1,158 @@
+<div id="employee-details-table-container">
+          {% include 'partials/employee_details_table.html' %}
+        </div>
+
+{{ block.super }}
+
+
+// AJAX pagination for Employee Details
+document.addEventListener('DOMContentLoaded', function() {
+  const empContainer = document.getElementById('employee-details-table-container');
+  if (empContainer) {
+    empContainer.addEventListener('click', function(e) {
+      const link = e.target.closest('.emp-page-link');
+      if (link) {
+        e.preventDefault();
+        const url = '/ajax/employee-details-table/' + link.getAttribute('href');
+        empContainer.innerHTML = '<div class="text-center py-4">Loading...</div>';
+        fetch(url)
+          .then(resp => resp.text())
+          .then(html => {
+            empContainer.innerHTML = html;
+          });
+      }
+    });
+  }
+
+  // AJAX pagination for User Access
+  function bindUserAccessPagination() {
+    document.querySelectorAll('.access-page-link').forEach(function(link) {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        const url = '/ajax/user-access-table/' + link.getAttribute('href');
+        const container = document.getElementById('user-access-table-container');
+        if (container) {
+          container.innerHTML = '<div class="text-center py-4">Loading...</div>';
+          fetch(url)
+            .then(resp => resp.text())
+            .then(html => {
+              container.innerHTML = html;
+              bindUserAccessPagination();
+            });
+        }
+      });
+    });
+  }
+  bindUserAccessPagination();
+
+  // Modal and revoke logic (unchanged)
+  const revokeModal = document.getElementById('revokeModal');
+  if (revokeModal) {
+    revokeModal.addEventListener('show.bs.modal', async (ev) => {
+      const btn = ev.relatedTarget;
+      const emp = btn.getAttribute('data-emp');
+      const email = btn.getAttribute('data-email');
+      document.getElementById('rev-emp').value = emp;
+      document.getElementById('rev-email').textContent = email;
+      // fetch presence
+      const res = await fetch(`/api/hrms/${emp}/presence/`);
+      const data = await res.json();
+      const p = data.presence || {};
+      document.getElementById('chk-rpulse').checked = !!p.rpulse;
+      document.getElementById('chk-dre').checked = !!p.dre;
+      document.getElementById('chk-ingenious').checked = !!p.ingenious;
+      document.getElementById('chk-exponentia').checked = !!p.exponentia;
+      document.getElementById('chk-neo').checked = !!p.neo;
+    });
+    document.getElementById('rev-submit').addEventListener('click', async () => {
+      const form = document.getElementById('revokeForm');
+      const fd = new FormData(form);
+      // Normalize checkbox values to 'true'/'false'
+      ['rpulse','dre','ingenious','exponentia','neo'].forEach(k => {
+        fd.set(k, document.getElementById('chk-'+k).checked ? 'true' : 'false');
+      });
+      const res = await fetch('/action/revoke-access/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCookie('csrftoken') },
+        body: fd,
+      });
+      if (res.ok) {
+        bootstrap.Modal.getInstance(revokeModal).hide();
+        alert('Submitted');
+      } else {
+        alert('Error submitting');
+      }
+    });
+  }
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+});
+
+
+employee_details_table.html
+<div class="mh-50vh">
+  <table class="table table-sm table-striped ">
+    <thead><tr><th>Emp Code</th><th>Name</th><th>Entity</th><th>Status</th><th>Business Email</th></tr></thead>
+    <tbody>
+    {% for h in page_obj %}
+      <tr>
+        <td>{{ h.emp_code }}</td>
+        <td>{{ h.first_name }} {{ h.last_name }}</td>
+        <td>{{ h.entity_name }}</td>
+        <td>
+          {% if h.employee_status == 'A' %}
+            <span class="chip chip-active">Active</span>
+          {% else %}
+            <span class="chip chip-inactive">Inactive</span>
+          {% endif %}
+        </td>
+        <td>{{ h.business_email }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+<nav>
+  <ul class="pagination mt-4">
+    {% if page_obj.has_previous %}
+      <li class="page-item"><a class="page-link emp-page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a></li>
+    {% endif %}
+    <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+    {% if page_obj.has_next %}
+      <li class="page-item"><a class="page-link emp-page-link" href="?page={{ page_obj.next_page_number }}">Next</a></li>
+    {% endif %}
+  </ul>
+</nav>
+
+
+views.py
+
+# AJAX endpoint for Employee Details table pagination
+@login_required
+@require_GET
+def ajax_employee_details_table(request):
+    all_rows = get_hrms_list()
+    # Use the same filtering as dashboard view for Employee Details
+    page_size = 25
+    page_param = request.GET.get('page') or 1
+    paginator = Paginator(all_rows, page_size)
+    page_obj = paginator.get_page(page_param)
+    context = {
+        'page_obj': page_obj,
+    }
+    return render(request, 'partials/employee_details_table.html', context)
+
+
+path('ajax/employee-details-table/', views.ajax_employee_details_table, name='ajax-employee-details-table'),
