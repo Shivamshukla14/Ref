@@ -1,153 +1,84 @@
-dashboard.html
-<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ra-access" type="button">User Access</button></li>
+from __future__ import annotations
 
-        <div class="table-responsive">
-          <table class="table table-sm table-striped">
-            <thead><tr><th>Emp Code</th><th>Name</th><th>Entity</th><th>Status</th><th>Email</th></tr></thead>
-            <tbody>
-            {% for h in my_rows %}
-              <tr>
-                <td>{{ h.emp_code }}</td>
-                <td>{{ h.first_name }} {{ h.last_name }}</td>
-                <td>{{ h.entity_name }}</td>
-                <td>
-                  {% if h.employee_status == 'A' %}
-                    <span class="chip chip-active">Active</span>
-                  {% else %}
-                    <span class="chip chip-inactive">Inactive</span>
-                  {% endif %}
-                </td>
-                <td>{{ h.business_email }}</td>
-              </tr>
-            {% empty %}
-              <tr><td colspan="5" class="text-center">No employees</td></tr>
-            {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <div class="tab-pane fade" id="ra-access">
-        <div id="ra-user-access-table-container">
-          {% include 'partials/ra_user_access_table.html' %}
-        </div>
+# Dummy HRMS records for development. Keys mirror expected template fields.
+
+import random
+_roles = {
+    'dre': ['Admin', 'User', 'Viewer', 'Auditor'],
+    'exponentia': ['Exp-Admin', 'Exp-User', 'Exp-Viewer'],
+    'ingenious': ['Menu1', 'Menu2', 'Menu3'],
+    'neo': ['Neo-Manager', 'Neo-User', 'Neo-Analyst'],
+    'rpulse': ['ModuleA', 'ModuleB', 'ModuleC'],
+    'dlp': ['Active', 'Inactive', 'Suspended'],
+}
+_role_fields = {
+    'dre': 'user_role',
+    'exponentia': 'user_role_name',
+    'ingenious': 'menu_name',
+    'neo': 'roles',
+    'rpulse': 'module',
+    'dlp': 'status_tc',
+}
+_base_hrms = [
+    {
+        'emp_code': 'E1001',
+        'first_name': 'Alice',
+        'last_name': 'Nido',
+        'entity_name': 'NIDO Solutions',
+        'employee_status': 'A',
+        'business_email': 'alice@nido.com',
+        'ra_email': 'ra1@example.com',
+    },
+    {
+        'emp_code': 'E1002',
+        'first_name': 'Bob',
+        'last_name': 'Smith',
+        'entity_name': 'NIDO',
+        'employee_status': 'I',
+        'business_email': 'bob@nido.com',
+        'ra_email': 'ra1@example.com',
+    },
+    {
+        'emp_code': 'E1003',
+        'first_name': 'Carol',
+        'last_name': 'Jones',
+        'entity_name': 'Other Entity',
+        'employee_status': 'A',
+        'business_email': 'carol@other.com',
+        'ra_email': 'ra2@example.com',
+    },
+]
+DUMMY_HRMS: list[dict] = []
+for base in _base_hrms:
+    rec = dict(base)
+    for app, field in _role_fields.items():
+        # Each employee gets 1-3 random roles for each app, comma separated
+        roles = random.sample(_roles[app], k=random.randint(1, min(3, len(_roles[app]))))
+        rec[field] = ','.join(roles)
+    DUMMY_HRMS.append(rec)
+print(DUMMY_HRMS)
 
 
-
-  // AJAX pagination for RA User Access
-  function bindRaUserAccessPagination() {
-    document.querySelectorAll('.ra-access-page-link').forEach(function(link) {
-      link.addEventListener('click', function(e) {
-        e.preventDefault();
-        const url = '/ajax/ra-user-access-table/' + link.getAttribute('href');
-        const container = document.getElementById('ra-user-access-table-container');
-        if (container) {
-          container.innerHTML = '<div class="text-center py-4">Loading...</div>';
-          fetch(url)
-            .then(resp => resp.text())
-            .then(html => {
-              container.innerHTML = html;
-              bindRaUserAccessPagination();
-            });
-        }
-      });
-    });
-  }
-  bindRaUserAccessPagination();
+# Simulate presence in master systems using sets of emails
+RPULSE = {'alice@nido.com'}
+DRE = {'bob@nido.com'}
+INGENIOUS = {'alice@nido.com', 'carol@other.com'}
+EXPONENTIA = set()
+NEO = {'alice@nido.com'}
+DLP = {'bob@nido.com'}
 
 
-views.py
-from django.views.decorators.http import require_GET, require_POST
-from django.shortcuts import render, redirect, get_object_or_404
-from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseForbidden
-from django.core.paginator import Paginator
-from django.db.models import Q
+def get_hrms_list() -> list[dict]:
+    return list(DUMMY_HRMS)
 
-# AJAX endpoint for RA User Access table pagination
-@login_required
-@require_GET
-def ajax_ra_user_access_table(request):
-    all_rows = get_hrms_list()
-    email = (request.user.email or '').lower()
-    my_rows = [r for r in all_rows if (r.get('ra_email') or '').lower() == email]
-    ra_access_rows = []
-    for emp in my_rows:
-        presence = presence_for_email(emp.get('business_email'))
-        ra_access_rows.append({
-            'emp_code': emp['emp_code'],
-            'first_name': emp['first_name'],
-            'last_name': emp['last_name'],
-            'business_email': emp['business_email'],
-            'presence': presence,
-        })
-    ra_access_page_param = request.GET.get('ra_access_page') or 1
-    ra_access_paginator = Paginator(ra_access_rows, 25)
-    ra_access_page_obj = ra_access_paginator.get_page(ra_access_page_param)
-    context = {
-        'ra_access_page_obj': ra_access_page_obj,
+
+def presence_for_email(email: str | None) -> dict:
+    email = (email or '').lower()
+    return {
+        'rpulse': email in RPULSE,
+        'dre': email in DRE,
+        'ingenious': email in INGENIOUS,
+        'exponentia': email in EXPONENTIA,
+        'neo': email in NEO,
+        'dlp': email in DLP,
     }
-    return render(request, 'partials/ra_user_access_table.html', context)
-from django.contrib.auth.decorators import login_required
-
-
-
-        # RA User Access: show all employees under this RA, with app access columns (like admin)
-        # Use presence_for_email for each employee
-        ra_access_rows = []
-        for emp in my_rows:
-            presence = _presence_for_email(emp.get('business_email'))
-            ra_access_rows.append({
-                'emp_code': emp['emp_code'],
-                'first_name': emp['first_name'],
-                'last_name': emp['last_name'],
-                'business_email': emp['business_email'],
-                'presence': presence,
-            })
-        ra_access_page_param = request.GET.get('ra_access_page') or 1
-        ra_access_paginator = Paginator(ra_access_rows, 25)
-        ra_access_page_obj = ra_access_paginator.get_page(ra_access_page_param)
-
-            'ra_access_page_obj': ra_access_page_obj,
-
-
-
-urls.py
-
-    path('ajax/ra-user-access-table/', views.ajax_ra_user_access_table, name='ajax-ra-user-access-table'),
-
-
-ra_user_access_table.html
-<div class="mh-50vh">
-<table class="table table-sm table-bordered align-middle">
-  <thead><tr><th>Emp Code</th><th>Name</th><th>Email</th><th>rpulse</th><th>dre</th><th>ingenious</th><th>exponentia</th><th>neo</th><th>dlp</th></tr></thead>
-  <tbody>
-  {% for h in ra_access_page_obj %}
-    <tr>
-      <td>{{ h.emp_code }}</td>
-      <td>{{ h.first_name }} {{ h.last_name }}</td>
-      <td>{{ h.business_email }}</td>
-      <td>{% if h.presence.rpulse %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
-      <td>{% if h.presence.dre %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
-      <td>{% if h.presence.ingenious %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
-      <td>{% if h.presence.exponentia %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
-      <td>{% if h.presence.neo %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
-      <td>{% if h.presence.dlp %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
-    </tr>
-  {% empty %}
-    <tr><td colspan="9" class="text-center">No employees</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
-</div>
-<nav>
-  <ul class="pagination mt-4">
-    {% if ra_access_page_obj.has_previous %}
-      <li class="page-item"><a class="page-link ra-access-page-link" href="?ra_access_page={{ ra_access_page_obj.previous_page_number }}">Previous</a></li>
-    {% endif %}
-    <li class="page-item disabled"><span class="page-link">Page {{ ra_access_page_obj.number }} of {{ ra_access_page_obj.paginator.num_pages }}</span></li>
-    {% if ra_access_page_obj.has_next %}
-      <li class="page-item"><a class="page-link ra-access-page-link" href="?ra_access_page={{ ra_access_page_obj.next_page_number }}">Next</a></li>
-    {% endif %}
-  </ul>
-</nav>
-
-
