@@ -1,158 +1,153 @@
-<div id="employee-details-table-container">
-          {% include 'partials/employee_details_table.html' %}
+dashboard.html
+<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ra-access" type="button">User Access</button></li>
+
+        <div class="table-responsive">
+          <table class="table table-sm table-striped">
+            <thead><tr><th>Emp Code</th><th>Name</th><th>Entity</th><th>Status</th><th>Email</th></tr></thead>
+            <tbody>
+            {% for h in my_rows %}
+              <tr>
+                <td>{{ h.emp_code }}</td>
+                <td>{{ h.first_name }} {{ h.last_name }}</td>
+                <td>{{ h.entity_name }}</td>
+                <td>
+                  {% if h.employee_status == 'A' %}
+                    <span class="chip chip-active">Active</span>
+                  {% else %}
+                    <span class="chip chip-inactive">Inactive</span>
+                  {% endif %}
+                </td>
+                <td>{{ h.business_email }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="5" class="text-center">No employees</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="tab-pane fade" id="ra-access">
+        <div id="ra-user-access-table-container">
+          {% include 'partials/ra_user_access_table.html' %}
         </div>
 
-{{ block.super }}
 
 
-// AJAX pagination for Employee Details
-document.addEventListener('DOMContentLoaded', function() {
-  const empContainer = document.getElementById('employee-details-table-container');
-  if (empContainer) {
-    empContainer.addEventListener('click', function(e) {
-      const link = e.target.closest('.emp-page-link');
-      if (link) {
-        e.preventDefault();
-        const url = '/ajax/employee-details-table/' + link.getAttribute('href');
-        empContainer.innerHTML = '<div class="text-center py-4">Loading...</div>';
-        fetch(url)
-          .then(resp => resp.text())
-          .then(html => {
-            empContainer.innerHTML = html;
-          });
-      }
-    });
-  }
-
-  // AJAX pagination for User Access
-  function bindUserAccessPagination() {
-    document.querySelectorAll('.access-page-link').forEach(function(link) {
+  // AJAX pagination for RA User Access
+  function bindRaUserAccessPagination() {
+    document.querySelectorAll('.ra-access-page-link').forEach(function(link) {
       link.addEventListener('click', function(e) {
         e.preventDefault();
-        const url = '/ajax/user-access-table/' + link.getAttribute('href');
-        const container = document.getElementById('user-access-table-container');
+        const url = '/ajax/ra-user-access-table/' + link.getAttribute('href');
+        const container = document.getElementById('ra-user-access-table-container');
         if (container) {
           container.innerHTML = '<div class="text-center py-4">Loading...</div>';
           fetch(url)
             .then(resp => resp.text())
             .then(html => {
               container.innerHTML = html;
-              bindUserAccessPagination();
+              bindRaUserAccessPagination();
             });
         }
       });
     });
   }
-  bindUserAccessPagination();
+  bindRaUserAccessPagination();
 
-  // Modal and revoke logic (unchanged)
-  const revokeModal = document.getElementById('revokeModal');
-  if (revokeModal) {
-    revokeModal.addEventListener('show.bs.modal', async (ev) => {
-      const btn = ev.relatedTarget;
-      const emp = btn.getAttribute('data-emp');
-      const email = btn.getAttribute('data-email');
-      document.getElementById('rev-emp').value = emp;
-      document.getElementById('rev-email').textContent = email;
-      // fetch presence
-      const res = await fetch(`/api/hrms/${emp}/presence/`);
-      const data = await res.json();
-      const p = data.presence || {};
-      document.getElementById('chk-rpulse').checked = !!p.rpulse;
-      document.getElementById('chk-dre').checked = !!p.dre;
-      document.getElementById('chk-ingenious').checked = !!p.ingenious;
-      document.getElementById('chk-exponentia').checked = !!p.exponentia;
-      document.getElementById('chk-neo').checked = !!p.neo;
-    });
-    document.getElementById('rev-submit').addEventListener('click', async () => {
-      const form = document.getElementById('revokeForm');
-      const fd = new FormData(form);
-      // Normalize checkbox values to 'true'/'false'
-      ['rpulse','dre','ingenious','exponentia','neo'].forEach(k => {
-        fd.set(k, document.getElementById('chk-'+k).checked ? 'true' : 'false');
-      });
-      const res = await fetch('/action/revoke-access/', {
-        method: 'POST',
-        headers: { 'X-CSRFToken': getCookie('csrftoken') },
-        body: fd,
-      });
-      if (res.ok) {
-        bootstrap.Modal.getInstance(revokeModal).hide();
-        alert('Submitted');
-      } else {
-        alert('Error submitting');
-      }
-    });
-  }
-  function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-      const cookies = document.cookie.split(';');
-      for (let i = 0; i < cookies.length; i++) {
-        const cookie = cookies[i].trim();
-        if (cookie.substring(0, name.length + 1) === (name + '=')) {
-          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-          break;
-        }
-      }
+
+views.py
+from django.views.decorators.http import require_GET, require_POST
+from django.shortcuts import render, redirect, get_object_or_404
+from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseForbidden
+from django.core.paginator import Paginator
+from django.db.models import Q
+
+# AJAX endpoint for RA User Access table pagination
+@login_required
+@require_GET
+def ajax_ra_user_access_table(request):
+    all_rows = get_hrms_list()
+    email = (request.user.email or '').lower()
+    my_rows = [r for r in all_rows if (r.get('ra_email') or '').lower() == email]
+    ra_access_rows = []
+    for emp in my_rows:
+        presence = presence_for_email(emp.get('business_email'))
+        ra_access_rows.append({
+            'emp_code': emp['emp_code'],
+            'first_name': emp['first_name'],
+            'last_name': emp['last_name'],
+            'business_email': emp['business_email'],
+            'presence': presence,
+        })
+    ra_access_page_param = request.GET.get('ra_access_page') or 1
+    ra_access_paginator = Paginator(ra_access_rows, 25)
+    ra_access_page_obj = ra_access_paginator.get_page(ra_access_page_param)
+    context = {
+        'ra_access_page_obj': ra_access_page_obj,
     }
-    return cookieValue;
-  }
-});
+    return render(request, 'partials/ra_user_access_table.html', context)
+from django.contrib.auth.decorators import login_required
 
 
-employee_details_table.html
+
+        # RA User Access: show all employees under this RA, with app access columns (like admin)
+        # Use presence_for_email for each employee
+        ra_access_rows = []
+        for emp in my_rows:
+            presence = _presence_for_email(emp.get('business_email'))
+            ra_access_rows.append({
+                'emp_code': emp['emp_code'],
+                'first_name': emp['first_name'],
+                'last_name': emp['last_name'],
+                'business_email': emp['business_email'],
+                'presence': presence,
+            })
+        ra_access_page_param = request.GET.get('ra_access_page') or 1
+        ra_access_paginator = Paginator(ra_access_rows, 25)
+        ra_access_page_obj = ra_access_paginator.get_page(ra_access_page_param)
+
+            'ra_access_page_obj': ra_access_page_obj,
+
+
+
+urls.py
+
+    path('ajax/ra-user-access-table/', views.ajax_ra_user_access_table, name='ajax-ra-user-access-table'),
+
+
+ra_user_access_table.html
 <div class="mh-50vh">
-  <table class="table table-sm table-striped ">
-    <thead><tr><th>Emp Code</th><th>Name</th><th>Entity</th><th>Status</th><th>Business Email</th></tr></thead>
-    <tbody>
-    {% for h in page_obj %}
-      <tr>
-        <td>{{ h.emp_code }}</td>
-        <td>{{ h.first_name }} {{ h.last_name }}</td>
-        <td>{{ h.entity_name }}</td>
-        <td>
-          {% if h.employee_status == 'A' %}
-            <span class="chip chip-active">Active</span>
-          {% else %}
-            <span class="chip chip-inactive">Inactive</span>
-          {% endif %}
-        </td>
-        <td>{{ h.business_email }}</td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
+<table class="table table-sm table-bordered align-middle">
+  <thead><tr><th>Emp Code</th><th>Name</th><th>Email</th><th>rpulse</th><th>dre</th><th>ingenious</th><th>exponentia</th><th>neo</th><th>dlp</th></tr></thead>
+  <tbody>
+  {% for h in ra_access_page_obj %}
+    <tr>
+      <td>{{ h.emp_code }}</td>
+      <td>{{ h.first_name }} {{ h.last_name }}</td>
+      <td>{{ h.business_email }}</td>
+      <td>{% if h.presence.rpulse %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
+      <td>{% if h.presence.dre %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
+      <td>{% if h.presence.ingenious %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
+      <td>{% if h.presence.exponentia %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
+      <td>{% if h.presence.neo %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
+      <td>{% if h.presence.dlp %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="9" class="text-center">No employees</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
 </div>
 <nav>
   <ul class="pagination mt-4">
-    {% if page_obj.has_previous %}
-      <li class="page-item"><a class="page-link emp-page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a></li>
+    {% if ra_access_page_obj.has_previous %}
+      <li class="page-item"><a class="page-link ra-access-page-link" href="?ra_access_page={{ ra_access_page_obj.previous_page_number }}">Previous</a></li>
     {% endif %}
-    <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
-    {% if page_obj.has_next %}
-      <li class="page-item"><a class="page-link emp-page-link" href="?page={{ page_obj.next_page_number }}">Next</a></li>
+    <li class="page-item disabled"><span class="page-link">Page {{ ra_access_page_obj.number }} of {{ ra_access_page_obj.paginator.num_pages }}</span></li>
+    {% if ra_access_page_obj.has_next %}
+      <li class="page-item"><a class="page-link ra-access-page-link" href="?ra_access_page={{ ra_access_page_obj.next_page_number }}">Next</a></li>
     {% endif %}
   </ul>
 </nav>
 
 
-views.py
-
-# AJAX endpoint for Employee Details table pagination
-@login_required
-@require_GET
-def ajax_employee_details_table(request):
-    all_rows = get_hrms_list()
-    # Use the same filtering as dashboard view for Employee Details
-    page_size = 25
-    page_param = request.GET.get('page') or 1
-    paginator = Paginator(all_rows, page_size)
-    page_obj = paginator.get_page(page_param)
-    context = {
-        'page_obj': page_obj,
-    }
-    return render(request, 'partials/employee_details_table.html', context)
-
-
-path('ajax/employee-details-table/', views.ajax_employee_details_table, name='ajax-employee-details-table'),
