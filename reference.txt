@@ -1,84 +1,29 @@
-from __future__ import annotations
-
-# Dummy HRMS records for development. Keys mirror expected template fields.
-
-import random
-_roles = {
-    'dre': ['Admin', 'User', 'Viewer', 'Auditor'],
-    'exponentia': ['Exp-Admin', 'Exp-User', 'Exp-Viewer'],
-    'ingenious': ['Menu1', 'Menu2', 'Menu3'],
-    'neo': ['Neo-Manager', 'Neo-User', 'Neo-Analyst'],
-    'rpulse': ['ModuleA', 'ModuleB', 'ModuleC'],
-    'dlp': ['Active', 'Inactive', 'Suspended'],
+/* Application Roles Modal: scrollable roles list, responsive modal */
+.roles-list-scroll {
+  max-height: 320px;
+  overflow-y: auto !important;
+  margin-bottom: 0;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  scrollbar-width: thin;
+  background: #fff;
 }
-_role_fields = {
-    'dre': 'user_role',
-    'exponentia': 'user_role_name',
-    'ingenious': 'menu_name',
-    'neo': 'roles',
-    'rpulse': 'module',
-    'dlp': 'status_tc',
+.modal-body {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-bottom: 1rem;
 }
-_base_hrms = [
-    {
-        'emp_code': 'E1001',
-        'first_name': 'Alice',
-        'last_name': 'Nido',
-        'entity_name': 'NIDO Solutions',
-        'employee_status': 'A',
-        'business_email': 'alice@nido.com',
-        'ra_email': 'ra1@example.com',
-    },
-    {
-        'emp_code': 'E1002',
-        'first_name': 'Bob',
-        'last_name': 'Smith',
-        'entity_name': 'NIDO',
-        'employee_status': 'I',
-        'business_email': 'bob@nido.com',
-        'ra_email': 'ra1@example.com',
-    },
-    {
-        'emp_code': 'E1003',
-        'first_name': 'Carol',
-        'last_name': 'Jones',
-        'entity_name': 'Other Entity',
-        'employee_status': 'A',
-        'business_email': 'carol@other.com',
-        'ra_email': 'ra2@example.com',
-    },
-]
-DUMMY_HRMS: list[dict] = []
-for base in _base_hrms:
-    rec = dict(base)
-    for app, field in _role_fields.items():
-        # Each employee gets 1-3 random roles for each app, comma separated
-        roles = random.sample(_roles[app], k=random.randint(1, min(3, len(_roles[app]))))
-        rec[field] = ','.join(roles)
-    DUMMY_HRMS.append(rec)
-print(DUMMY_HRMS)
-
-
-# Simulate presence in master systems using sets of emails
-RPULSE = {'alice@nido.com'}
-DRE = {'bob@nido.com'}
-INGENIOUS = {'alice@nido.com', 'carol@other.com'}
-EXPONENTIA = set()
-NEO = {'alice@nido.com'}
-DLP = {'bob@nido.com'}
-
-
-def get_hrms_list() -> list[dict]:
-    return list(DUMMY_HRMS)
-
-
-def presence_for_email(email: str | None) -> dict:
-    email = (email or '').lower()
-    return {
-        'rpulse': email in RPULSE,
-        'dre': email in DRE,
-        'ingenious': email in INGENIOUS,
-        'exponentia': email in EXPONENTIA,
-        'neo': email in NEO,
-        'dlp': email in DLP,
-    }
+.roles-list-scroll::-webkit-scrollbar {
+  width: 8px;
+  background: #f1f1f1;
+}
+.roles-list-scroll::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 4px;
+}
+.modal-dialog {
+  max-width: 420px;
+}
+.modal-content {
+  min-height: 340px;
+}
