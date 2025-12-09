@@ -1,0 +1,47 @@
+I need to create Issue/Bug Tracking system.
+
+The Application we are building is basically related to Whatever issues users are facing in any of the inhouse applications in the entity they can report the issue in that via raising a ticket.
+
+Flow will be as follow:
+
+1)User Reports an issue in the application by raising a ticket. The User can set the priority of his request as high, medium and low.
+
+2) The ticket will first go in unassigned bucket at beginning.
+
+3) When a new ticket comes in unassigned bucket an alert email is been sent to Scrum Master 1(SM1) and Scrum Master 2(SM2) with the issue details.
+
+4)SM1 can assign the ticket to anyone from the IT team for resolution from the list of assignee. If SM1 assigns the ticket to someone and he/she is already been assigned to another ticket in past and still the ticket is in progress stage then there should be a prompt raised to sm1 stating Selected Member is already engaged in another task. There will be buttons along with prompt "assign anyway" and "assign later", 'assign later' will skip the prompt and and will not assign the ticket to him. 'assign anyway' will line up the ticket to him. After successful assigning the ticket respective assigned engineer will be getting an alert email. The alert email should have data like who assigned the task to him and details of the issue.
+
+5)SM2 can also assign the ticket to anyone same as SM1. But SM2 will be considered as level 2 and he/she can modify the assignee or assigned engineer from engineer1 to engineer2 with some comment why he is reassigning. If SM2 assigns any ticket to anyone SM1 cannot modify that but SM2 can modify the assigned to here also whenever a task is assigned to anyone the engineer should receive an alert email about the ticket assigned to him. The alert email should have data like who assigned the ticket to whom and details of the issue.
+
+6)SM1 and SM2 can line up the priority of which ticket needs to be resolved first which on second and so on for the engineer.
+
+7)When Assignee logged in he can see all the assigned ticket to him in his bucket. He will need to define a time for the assigned ticket in how many hours or minutes he can resolve the assigned ticket. Whatever the resolution time will be after given time by engineer which was calculated after engineer input, before 30 mins of resolution time if the issue is still not resolved an alert email should be sent to the engineer about the deadline of the task.
+
+8) For One time the engineer can ask for extension of resolution time if the SM1 and SM2 approves for extension based on comments provided by engineer for extension and once approved he can again give a time in how many hours or minutes he can resolve the issue. The extension of resolution email should also be sent to user who reported the issue.
+
+9)If the ticket is not resolved in given resolution time it should be escalated to RA of the engineer with a email and details of the ticket should be there in that email, Also the ticket should be pushed in escalation bucket. The engineer can only see the ticket from escalation bucket which are present assigned to him and not overall cases in escalation bucket. 
+
+10) Whenever RA or SM1 or SM2 logs in he can check all the issues present in escalation bucket with the engineer name.
+
+11) If SM1 and SM2 clicks on 'assign anyway' at the time of assigning, the time of resolution will be calculated and displayed after resolution time of earlier ticket lined up to him.
+
+12) The application should be role based and pages or tabs should be visible based on the role assigned to logged in employee of the organization. It should check in role table the logged in user is a user or sm1 or sm2 or assignee. If none of the role is assigned then a default page of role not assigned to the employee should appear. If multiple roles are assigned to the an employee accordingly in different tabs or sections it should be visible.
+
+13) If for an ticket raised there is an attachment attached by the user. The attachment can be of anytype pdf, jpeg, jpg, png, msg, etc for that issue a unique code will be generated(for all the cases with or without attachment). The attachment should be stored in folder named with unique code which should follow a pattern while creating as it will be used to create a folder with same name and store those documents in it in s3. All the attachments for so and so case will be stored in an s3 bucket within the folder only with same name as case number.
+
+14) The folder structure in s3 will be created in the following path. Lets say an issue is reported in 11-11-2025 for application exponentia and case id generated for the application issue reported is N-EXP-1001. Then it should be create a folder 2025 which is my year in that November Folder (which is 11 my month) and in that folder name 11 (which is my date) in that a folder name N-EXP-1001 which is my case id. In that all the documents will be stored for that case. Later on it will be displayed and fetched from there only.
+
+15) Once uploaded he can download the uploaded document, image anything for that case and Also who can see the case they will be able to download the same.
+
+16) The documents should be directly uploaded to s3 via a temporary link generated from s3 and it should not be stored in server.
+
+17) The issues which were resolved within resolution time should be present in resolved bucket. The issues which were resolved after escalation should be present in escalation resolved bucket.
+
+18)Finally there will be a dashboard page for SM1 and SM2 who can see the summary of the overall how many tickets are open how many are breached how many are resolved in resolution time how many are escalated and how many are resolved after escalation, SLAs etc etc which can be covered in it.
+
+20)If I Login based on role assigned to me i will be able to see respective pages on my screen according to my role. There should be a admin role as well who can assign roles from SM1 , SM2, assignee, user to any employee. 
+
+21)Logins will be based on Azure AD SSO.
+
+21)Generate me high level plan for the same. It will be developed in Django (python version 3.11.3) and database will be Postgres.
