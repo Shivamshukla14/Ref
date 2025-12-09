@@ -1,0 +1,195 @@
+PROJECT: Issue/Bug Tracking System — Django (Python 3.11.3) + Postgres
+
+OBJECTIVE
+Build a role-based Issue/Bug Tracking web application for internal inhouse applications. Users report issues (tickets). Scrum Masters assign tickets to Engineers. System handles assignment conflicts, SLA timers, extension approvals, escalations, S3 attachment management using presigned URLs, Azure AD SSO authentication, and dashboards for SM1/SM2.
+
+TECH STACK (required)
+- Backend: Django with Django REST Framework (Python 3.11.3)
+- Database: Postgres (schema described below)
+- Auth: Azure AD SSO (OIDC or SAML as per tenant)
+- Storage: AWS S3 (attachments via presigned put/get URLs)
+- Task scheduler: Celery + Redis or Django-beat (for reminders, escalations)
+- Email: SMTP or transactional provider (SES/SendGrid)
+- Frontend: React (or Django templates if preferred) — must be role aware
+- Containerization: Docker
+- CI/CD: GitHub Actions or equivalent
+
+ROLES & PERMISSIONS
+- Reporter (User): create ticket, upload attachments, view tickets they reported
+- SM1: first level Scrum Master — assigns tickets from Unassigned bucket; can reorder priority for engineer queues; receives unassigned alerts; can assign unless overridden by SM2's assignment
+- SM2: second level Scrum Master (level 2) — can assign or reassign; SM2 is considered authoritative: if SM2 assigns a ticket, SM1 cannot modify that assignment (SM1 can still see it)
+- Assignee (Engineer): sees assigned tickets (and only escalated tickets assigned to him in escalation bucket); sets resolution time; requests single extension
+- RA (Reporting Authority / Manager of engineer): receives escalations for tickets that breach resolution time
+- Admin: assign roles to employees (SM1/SM2/Assignee/User), view audit logs
+- Multi-role employees: can see tabs/pages for all their roles. If no role assigned show "Role not assigned" default page.
+
+DATABASE MODELS (core)
+- User (id, azure_ad_id, name, email, is_active)
+- Role (id, name) and UserRole (user_id, role_id) — allow multiple roles
+- ApplicationCatalog (id, name, code) — app where issue reported
+- Ticket (id, case_id STRING, reporter_id, app_id, title, description, priority ENUM [high, medium, low], status ENUM [unassigned, assigned, in_progress, resolved, escalated, resolved_escalated], created_at, updated_at, reported_date)
+  - case_id pattern: `N-<APP_CODE>-<SEQUENCE>` (example: `N-EXP-1001`)
+- Assignment (id, ticket_id, assigned_to (user), assigned_by (user), assigned_at, assigned_level ENUM [SM1,SM2], is_active boolean, queued_after_assignment_id nullable)
+- AssigneeLoad (user_id, ticket_id, status) — to find if engineer has another in_progress assignment
+- TicketHistory / TicketEvents (ticket_id, actor_id, action, metadata JSON, timestamp)
+- Attachment (id, ticket_id, filename, s3_key, uploaded_by, uploaded_at, content_type)
+- ExtensionRequest (id, ticket_id, requested_by, requested_time_delta, comments, approved_by_sm1 boolean, approved_by_sm2 boolean, status ENUM [pending, approved, rejected])
+- Escalation (id, ticket_id, escalated_to (RA user_id), escalated_at, reason, email_sent boolean)
+- SLARecord (ticket_id, assigned_at, resolved_at, breached boolean, original_due_time, extended_due_time nullable)
+- Notification (id, user_id, ticket_id, type, sent_at, delivered) — optional audit for emails
+
+S3 ATTACHMENT RULES & PATHS
+- Each ticket has unique case_id created at ticket creation (even if no attachment).
+- Folder structure: `<year>/<month>/<date>/<case-id>/`
+  - Example: Ticket reported on 11-11-2025 for application exponentia with case ID `N-EXP-1001`:
+    - Path prefix: `2025/11/11/N-EXP-1001/`
+  - Store each attachment under that prefix. s3_key should include full path and filename.
+- Uploads: Frontend obtains presigned PUT URL from backend endpoint `POST /api/presign-upload/` with params: case_id, filename, content_type. Backend returns URL and required fields (if multipart) with restricted key into prefix.
+- Downloads: presigned GET URL created on demand with minimal expiration (e.g., 5–15 minutes).
+- Validate file size and content type server-side. Allow pdf, jpeg, jpg, png, msg, etc. (configurable list).
+
+TICKET LIFECYCLE & BEHAVIOR (mapped to your steps)
+1) Ticket creation: user creates ticket with priority (high/medium/low), optional attachment(s). Backend generates case_id and returns it. Ticket initial `status = unassigned`. If attachments present, create folder prefix immediately or ensure presigned upload keys use the case_id prefix.
+2) Unassigned bucket: Tickets with `status=unassigned` appear in Unassigned bucket for SM1 & SM2.
+3) New unassigned alert: When a ticket is created and status unassigned, send alert emails to SM1 and SM2 with ticket details.
+4) Assignment by SM1:
+   - SM1 selects an engineer from assignee pool.
+   - If selected engineer already has an `in_progress` ticket (or another assigned ticket not resolved) — show client prompt that "Selected member is already engaged in another task" with buttons:
+     - **Assign Anyway**: proceed to assign. Ticket will be queued to that engineer; SLA/due time will be calculated to line up after other in-progress ticket(s).
+     - **Assign Later**: cancel assignment action (no assignment).
+   - After successful assignment send email to assigned engineer with: who assigned (SM1), ticket details, expected due time (if assigned).
+   - Backend: create Assignment record with assigned_level=SM1. If assigned anyway, optionally set a `queued_after_assignment_id` to reflect ordering.
+5) Assignment by SM2:
+   - SM2 can assign like SM1. If SM2 assigns or reassigns a ticket, SM2's assignment becomes authoritative; SM1 cannot change that assignment thereafter (enforce via checks).
+   - If SM2 modifies assignee, require a comment for reassignment. Email notification must include the comment and who performed the change.
+6) Priority ordering: SM1 and SM2 can reorder ticket priorities for engineers (i.e., set ordering/priority queue for an engineer’s list).
+7) Engineer resolution time:
+   - When an engineer accepts/starts the ticket they must define resolution time as hours/minutes.
+   - System computes due_time = assigned_at + resolution_time.
+   - 30 minutes before due_time (if still unresolved), send an alert email to engineer.
+   - Use a scheduler (Celery beat) to check upcoming deadlines.
+8) Extension:
+   - Engineer can request a one-time extension with comments.
+   - Both SM1 and SM2 must approve extension (approval toggles in UI). Only one extension allowed.
+   - On approval send extension email to reporter (the user who raised ticket) plus update due_time. Record approvals in ExtensionRequest table.
+9) Escalation:
+   - If ticket not resolved by (due_time + any approved extension) then escalate:
+     - Send escalation email to RA of the engineer with ticket details and set `status= escalated`.
+     - Place ticket in Escalation bucket.
+     - Engineer sees escalated tickets assigned to them in their own escalation view (not full escalation bucket).
+10) Escalation visibility:
+   - RA or SM1 or SM2 when logged in can view all issues in the escalation bucket with the engineer name(s).
+11) Assign Anyway timing:
+   - If SM1/SM2 clicks 'assign anyway' for an engineer already busy, the system calculates resolution time to be appended (i.e., new ticket due_time lines up after earlier ticket(s) queued to that engineer).
+12) Role behavior:
+   - Role checks use Role table. UI shows pages/tabs per user role(s). No role → default "Role not assigned" page.
+13) Attachment behavior:
+   - Generate case_id on ticket creation; attachments stored under its S3 prefix.
+   - Allow download for authorized users only (generate presigned GET).
+14) S3 folder structure explained above (year/month/date/case-id).
+15) Download controls:
+   - Allowed viewers (reporter, assigned engineer, SM1, SM2, RA, admin, or commenters allowed by role) can download attachments.
+16) Direct S3 uploads only via temporary presigned link — attachments must not be stored on server disk.
+17) Resolved buckets:
+   - `resolved` bucket: tickets resolved within resolution time.
+   - `escalation_resolved` bucket: tickets resolved after escalation.
+18) Dashboard:
+   - SM1 & SM2 dashboards showing:
+     - total open,
+     - total breached,
+     - resolved on time,
+     - escalated,
+     - resolved after escalation,
+     - SLA compliance %,
+     - additional filters by app, priority, date range.
+19) Login:
+   - Azure AD SSO for authentication. Map Azure AD groups/claims to local roles. Admin can override roles in app.
+20) Admin:
+   - Admin role that can assign roles to employees from UI (SM1, SM2, assignee, user). Changing roles logged in audit trail.
+21) Notifications & Email templates:
+   - New unassigned: to SM1, SM2
+   - Assignment: to assignee (who assigned, ticket details, due_time)
+   - Reassignment by SM2: to new assignee and previous assignee (include comments)
+   - 30-min before due: to assignee
+   - Extension requested: to SM1/SM2 (pending).
+   - Extension approved: to reporter + assignee (include new due time and approver names).
+   - Escalation: to RA + SMs
+   - Resolved: to reporter and SMs
+   - All emails should include ticket case_id, title, description, priority, application, created_date, link to ticket detail page, and attachments list.
+   - Provide templated HTML and plaintext versions.
+
+API CONTRACTS (examples)
+- `POST /api/tickets/` — create ticket. Returns case_id.
+- `GET /api/tickets/?bucket=unassigned` — list unassigned
+- `POST /api/tickets/{id}/assign/` — assign ticket (body: assignee_id, assigned_by_id, assigned_level [SM1/SM2], comment optional, assign_override boolean)
+- `POST /api/presign-upload/` — request presigned PUT for case_id, filename, content_type -> returns url and key
+- `POST /api/presign-download/` — request presigned GET for attachment id
+- `POST /api/tickets/{id}/extension/` — create extension request
+- `POST /api/tickets/{id}/extension/{ext_id}/approve/` — approve extension (SM1/SM2)
+- `GET /api/dashboard/summary/` — returns dashboard metrics authorized for SMs
+
+UI/UX Notes
+- Assignment dialog must check engineer current active tickets via API and show conflict modal with two buttons: "Assign Anyway" and "Assign Later".
+- When "Assign Anyway" chosen, show expected new due time calculated by lining up after existing assignments.
+- Role tabbing: If user has multiple roles, provide a top tab nav to switch contexts — but keep a single session.
+- Default "Role not assigned" page with contact to Admin.
+
+BUSINESS RULES/EDGE CASES
+- If SM2 assigns, SM1 cannot change assignment (enforce via DB flag or check).
+- Only one extension per ticket.
+- If engineer requests extension and one SM approves but the other rejects: require both approvals; default to pending until both respond.
+- If engineer requests extension and both approve, set `extended_due_time` and send email to reporter.
+- The engineer can only see the escalation bucket entries assigned to them; SMs and RAs see full escalation bucket.
+- Ensure idempotent presign endpoints (avoid duplicate uploads creating orphan objects).
+- Ensure attachments with same filename stored with unique S3 keys (e.g., prefix + uuid or timestamp).
+- Audit every assignment/reassign in TicketHistory.
+
+NON-FUNCTIONAL & SECURITY
+- All endpoints authenticated via Azure AD tokens (validate and map to local users).
+- Enforce RBAC on endpoints and S3 presign generation.
+- Rate limiting for APIs if necessary.
+- Input validation (prevent XSS, restrict content types and max file sizes).
+- Encrypt DB backups; use least privilege for S3 keys.
+- Logging for security sensitive actions (role changes, assignments).
+
+TESTS & QA
+- Unit tests for ticket lifecycle, assignment conflict logic, extension approvals, escalation triggers.
+- Integration tests for Azure AD SSO login mapping, presigned S3 upload flows (mock S3 in CI).
+- End-to-end tests for full flow: report → assign → engineer set due time → reminder → escalation.
+- Acceptance tests: sample scenarios (happy path, assign conflict, extension approve/reject, escalation).
+
+DELIVERABLES
+- ER diagram, API spec (OpenAPI/Swagger)
+- Django project with DRF endpoints, migrations, models
+- Frontend components/pages for all roles (or Django templates)
+- Celery tasks or scheduler for reminders/escalations
+- Email templates (HTML + Plain)
+- Documentation: deployment README, S3 naming rules, Azure AD integration steps, role mapping guide
+- Postgres migration scripts and seed data (sample users and roles)
+
+OPERATIONAL
+- Make presigned upload keys expire quickly (e.g., 15 minutes)
+- Provide admin UI for viewing Notification log and TicketHistory
+- Provide toggle to reassign an SM1-assigned ticket if SM2 later assigns (SM2 override allowed)
+- Provide proper error handling and user friendly messages in UI
+
+ACCEPTANCE CRITERIA (repeatable)
+- Create a ticket with attachment → attachment stores under `YYYY/MM/DD/CASEID/` in S3 via presigned upload; presigned upload keys are not persisted on backend
+- New ticket triggers email to SM1 and SM2
+- SM1 assigns engineer who is busy → prompt appears; "Assign Anyway" queues and calculates new due date.
+- Engineer receives assignment email describing who assigned and ticket details
+- Engineer sets resolution time; 30-minute prior reminder is sent
+- Single extension request flow with SM1 & SM2 approvals and reporter-notified on approval
+- Ticket breached → escalate to RA (RA receives email) and move ticket to escalation bucket; engineer sees only his escalations
+- Dashboard counts match DB data
+
+IMPLEMENTATION NOTES
+- Use Django signals or explicit tasks to generate emails on important events (ticket create, assign, escalate, extension changes).
+- Use database transactions to avoid race conditions on assignment checks.
+- When checking if a user is "busy", check for active assignments with `status in (assigned, in_progress)` rather than resolved.
+- For "line up" behavior, compute assignee's pending queue and set new ticket's start_time to end_of_last_pending, then compute due_time = start_time + specified resolution_time.
+- Keep business rules centralized in services (not in views) for testability.
+
+PLEASE DELIVER: ERD, OpenAPI spec, backend code (Django app), frontend skeleton for role pages, Celery tasks for reminders/escalations, and sample email templates in HTML + plain text.
+
+END OF PROMPT
