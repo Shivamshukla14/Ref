@@ -1,0 +1,129 @@
+-- -- Danger: drops all app tables in resolvex
+-- DROP SCHEMA IF EXISTS resolvex CASCADE;
+-- CREATE SCHEMA resolvex;
+
+-- ALTER SCHEMA resolvex OWNER TO resolvex_user;  -- replace if necessary
+
+
+-- -- Keep Django core apps intact; clear only your local apps
+-- DELETE FROM public.django_migrations
+-- WHERE app IN ('coreauth','applications','catalog','tickets');
+
+-- Remove-Item -Recurse -Force .\coreauth\migrations\* -Exclude "__init__.py"
+-- Remove-Item -Recurse -Force .\applications\migrations\* -Exclude "__init__.py"
+-- Remove-Item -Recurse -Force .\catalog\migrations\* -Exclude "__init__.py"
+-- Remove-Item -Recurse -Force .\tickets\migrations\* -Exclude "__init__.py"
+
+
+
+select * from resolvex.resolvex_role;
+select * from test_app_logging.hrms;
+-- "EMP001"
+select * from resolvex.resolvex_role_mapping;
+
+
+
+-- rajesh.agarwal@nido.com - admin
+-- anita.mehra@nido.com - sm1
+-- vikram.sharma@nido.com - sm2
+-- sunita.kapoor@nido.com - engineer
+-- manish.chandra@nido.com - user
+select * from resolvex.resolvex_application;
+
+select * from resolvex.service_category;
+
+select * from resolvex.service;
+truncate table resolvex.service_category;
+
+-- =========================
+-- SOFTWARE CATEGORIES
+-- =========================
+INSERT INTO resolvex.service_category (id, name, code, is_active, service_id)
+VALUES
+(1, 'Application Issue', 'APP_ISSUE', true, 1),
+(2, 'Access Issue', 'ACCESS_ISSUE', true, 1),
+(3, 'Performance Issue', 'PERF_ISSUE', true, 1),
+(4, 'Data Issue', 'DATA_ISSUE', true, 1),
+(5, 'Enhancement Request', 'ENH_REQUEST', true, 1);
+
+-- =========================
+-- HARDWARE / INFRA CATEGORIES
+-- =========================
+INSERT INTO resolvex.service_category (id, name, code, is_active, service_id)
+VALUES
+(6, 'Laptop / Desktop', 'LAPTOP_DESKTOP', true, 2),
+(7, 'Network', 'NETWORK', true, 2),
+(8, 'Server', 'SERVER', true, 2),
+(9, 'Printer', 'PRINTER', true, 2),
+(10, 'Peripherals', 'PERIPHERALS', true, 2);
+
+
+INSERT INTO resolvex.service_sub_category (id, name, code, is_active, category_id)
+VALUES
+(1, 'Login Issue', 'LOGIN_ISSUE', true, 1),
+(2, 'Functional Issue', 'FUNCTIONAL_ISSUE', true, 1),
+(3, 'Crash / Error', 'CRASH_ERROR', true, 1),
+(4, 'User Access', 'USER_ACCESS', true, 2),
+(5, 'Role / Permission Issue', 'ROLE_PERMISSION', true, 2),
+(6, 'Slow Performance', 'SLOW_PERFORMANCE', true, 3),
+(7, 'Timeout Issue', 'TIMEOUT_ISSUE', true, 3),
+(8, 'Incorrect Data', 'INCORRECT_DATA', true, 4),
+(9, 'Data Missing', 'DATA_MISSING', true, 4),
+(10, 'UI Enhancement', 'UI_ENH', true, 5),
+(11, 'New Feature Request', 'NEW_FEATURE', true, 5);
+
+
+INSERT INTO resolvex.service_sub_category (id, name, code, is_active, category_id)
+VALUES
+(12,'Power Issue', 'POWER_ISSUE', true, 6),
+(13,'Hardware Failure', 'HW_FAILURE', true, 6),
+(14,'Performance Issue', 'HW_PERF_ISSUE', true, 6),
+(15,'Internet Issue', 'INTERNET_ISSUE', true, 7),
+(16,'VPN Issue', 'VPN_ISSUE', true, 7),
+(17,'Server Down', 'SERVER_DOWN', true, 8),
+(18,'Disk Space Issue', 'DISK_SPACE', true, 8),
+(19,'Printing Issue', 'PRINTING_ISSUE', true, 9),
+(20,'Connectivity Issue', 'PRINTER_CONN', true, 9),
+(21,'Keyboard / Mouse', 'KEY_MOUSE', true, 10),
+(22,'Monitor Issue', 'MONITOR_ISSUE', true, 10);
+
+INSERT INTO resolvex.service_sub_sub_category (id, name, code, is_active, sub_category_id)
+VALUES
+(1, 'Invalid Credentials', 'INVALID_CRED', true, 1),
+(2, 'Password Reset Required', 'PWD_RESET', true, 1),
+(3, 'MFA Issue', 'MFA_ISSUE', true, 1),
+(4, 'Button Not Working', 'BTN_NOT_WORK', true, 2),
+(5, 'Form Submission Failed', 'FORM_FAIL', true, 2),
+(6, 'Incorrect Output', 'INCORRECT_OUTPUT', true, 2),
+(7, '500 Internal Server Error', 'ERROR_500', true, 3),
+(8, 'Page Not Loading', 'PAGE_NOT_LOAD', true, 3),
+(9, 'New User Access', 'NEW_USER_ACCESS', true, 4),
+(10, 'Access Revocation', 'ACCESS_REVOKE', true, 4),
+(11, 'Role Missing', 'ROLE_MISSING', true, 5),
+(12, 'Incorrect Permission', 'WRONG_PERMISSION', true, 5),
+(13, 'Application Slowness', 'APP_SLOW', true, 6),
+(14, 'High Response Time', 'HIGH_RESPONSE', true, 6),
+(15, 'Wrong Calculation', 'WRONG_CALC', true, 8),
+(16, 'Missing Records', 'MISSING_RECORD', true, 9),
+(17, 'UI Improvement', 'UI_IMPROVE', true, 10),
+(18, 'Add New Feature', 'ADD_FEATURE', true, 11);
+
+
+INSERT INTO resolvex.service_sub_sub_category (id, name, code, is_active, sub_category_id)
+VALUES
+(19, 'Not Powering On', 'NO_POWER', true, 12),
+(20, 'Battery Drain Issue', 'BATTERY_DRAIN', true, 12),
+(21, 'Screen Issue', 'SCREEN_ISSUE', true, 13),
+(22, 'Keyboard Issue', 'KEYBOARD_ISSUE', true, 13),
+(23, 'Slow System', 'SLOW_SYSTEM', true, 14),
+(24, 'Overheating', 'OVERHEAT', true, 14),
+(25, 'No Internet', 'NO_INTERNET', true, 15),
+(26, 'Intermittent Connectivity', 'INTERMITTENT_NET', true, 15),
+(27, 'VPN Not Connecting', 'VPN_NOT_CONNECT', true, 16),
+(28, 'VPN Disconnecting', 'VPN_DISCONNECT', true, 16),
+(29, 'Server Unreachable', 'SERVER_UNREACH', true, 17),
+(30, 'Low Disk Space', 'LOW_DISK', true, 18),
+(31, 'Paper Jam', 'PAPER_JAM', true, 19),
+(32, 'Printer Offline', 'PRINTER_OFFLINE', true, 20),
+(33, 'Mouse Not Working', 'MOUSE_NOT_WORK', true, 21),
+(34, 'Monitor Flickering', 'MONITOR_FLICKER', true, 22);
