@@ -1,132 +1,153 @@
 INSERT INTO service (id, name, code, is_active)
 VALUES
 (1, 'Application Support', 'APP_SUPPORT', true);
-
-
 INSERT INTO service_category (id, service_id, name, code, is_active)
 VALUES
 -- Functional & UI
 (1, 1, 'Application Functionality Issue', 'APP_FUNC', true),
 (2, 1, 'UI / UX Issue', 'UI_UX', true),
-
 -- Access & Security
 (3, 1, 'Login & Access Issue', 'ACCESS', true),
 (4, 1, 'Authorization / Permission Issue', 'AUTHZ', true),
-
 -- Performance & Stability
 (5, 1, 'Performance Issue', 'PERF', true),
 (6, 1, 'Application Crash / Error', 'CRASH', true),
-
 -- Data
 (7, 1, 'Data Issue', 'DATA', true),
-
 -- Integration
 (8, 1, 'Integration Issue', 'INTEGRATION', true),
-
 -- Notifications
 (9, 1, 'Notification Issue', 'NOTIF', true);
-
-
 INSERT INTO service_sub_category (id, category_id, name, code, is_active)
 VALUES
 -- Application Functionality
 (1, 1, 'Feature Not Working', 'FEATURE_FAIL', true),
 (2, 1, 'Incorrect Business Logic', 'BUSINESS_LOGIC', true),
-
 -- UI / UX
 (3, 2, 'Page Not Loading', 'PAGE_LOAD', true),
 (4, 2, 'UI Misalignment', 'UI_ALIGN', true),
 (5, 2, 'Broken Button / Link', 'BROKEN_UI', true),
-
 -- Login & Access
 (6, 3, 'Unable to Login', 'LOGIN_FAIL', true),
 (7, 3, 'Session Timeout Issue', 'SESSION', true),
-
 -- Authorization
 (8, 4, 'Missing Permission', 'MISSING_ROLE', true),
 (9, 4, 'Incorrect Access Level', 'WRONG_ACCESS', true),
-
 -- Performance
 (10, 5, 'Slow Response', 'SLOW', true),
 (11, 5, 'Application Freeze', 'FREEZE', true),
-
 -- Crash / Error
 (12, 6, 'Application Crash', 'APP_CRASH', true),
 (13, 6, 'Unhandled Exception', 'EXCEPTION', true),
-
 -- Data
 (14, 7, 'Incorrect Data Display', 'DATA_DISPLAY', true),
 (15, 7, 'Data Not Saving', 'DATA_SAVE', true),
-
 -- Integration
 (16, 8, 'API Failure', 'API_FAIL', true),
 (17, 8, 'Third-party Service Down', 'EXT_SERVICE', true),
-
 -- Notification
 (18, 9, 'Email Not Received', 'EMAIL_FAIL', true),
 (19, 9, 'SMS / Push Not Received', 'PUSH_FAIL', true);
-
-
 INSERT INTO service_sub_sub_category (id, sub_category_id, name, code, is_active)
 VALUES
 -- Feature Not Working
 (1, 1, 'Button Click Has No Action', 'BTN_NO_ACTION', true),
 (2, 1, 'Form Submission Fails', 'FORM_FAIL', true),
-
 -- Business Logic
 (3, 2, 'Incorrect Calculation', 'CALC_ERROR', true),
 (4, 2, 'Workflow Not Triggered', 'WORKFLOW_FAIL', true),
-
 -- Page Load
 (5, 3, 'Infinite Loader', 'INFINITE_LOAD', true),
 (6, 3, 'HTTP 500 Error', 'HTTP_500', true),
-
 -- UI Alignment
 (7, 4, 'Overlapping Elements', 'OVERLAP', true),
 (8, 4, 'Responsive Issue', 'RESPONSIVE', true),
-
 -- Login
 (9, 6, 'Invalid Credentials Error', 'INVALID_CREDS', true),
 (10, 6, 'Captcha Not Loading', 'CAPTCHA_FAIL', true),
-
 -- Session
 (11, 7, 'Auto Logout', 'AUTO_LOGOUT', true),
-
 -- Permission
 (12, 8, 'Menu Not Visible', 'MENU_MISSING', true),
 (13, 9, 'Unauthorized Error', 'HTTP_403', true),
-
 -- Performance
 (14, 10, 'Page Load > 10s', 'LOAD_SLOW', true),
 (15, 11, 'Screen Freezes', 'SCREEN_FREEZE', true),
-
 -- Crash
 (16, 12, 'Crash After Login', 'CRASH_LOGIN', true),
 (17, 13, 'Null Pointer Exception', 'NPE', true),
-
 -- Data
 (18, 14, 'Incorrect Records', 'WRONG_DATA', true),
 (19, 15, 'Save Button Not Working', 'SAVE_FAIL', true),
-
 -- Integration
 (20, 16, 'Timeout Error', 'API_TIMEOUT', true),
 (21, 17, 'Service Unreachable', 'SERVICE_DOWN', true),
-
 -- Notification
 (22, 18, 'Email Delayed', 'EMAIL_DELAY', true),
 (23, 19, 'Push Notification Failed', 'PUSH_ERROR', true);
-
-
 INSERT INTO service_category (id, service_id, name, code, is_active)
 VALUES
 (99, 1, 'Other Application Issue', 'OTHER', true);
-
-
 INSERT INTO service_sub_category (id, category_id, name, code, is_active)
 VALUES
 (99, 99, 'Other Issue Type', 'OTHER_TYPE', true);
-
-
 INSERT INTO service_sub_sub_category (id, sub_category_id, name, code, is_active)
 VALUES
 (99, 99, 'Other / Not Listed', 'OTHER_DETAIL', true);
+
+---
+priority_mapping
+INSERT INTO resolvex.priority_mapping
+(service_category_id, service_sub_category_id, service_sub_sub_category_id, impact, urgency, priority_code, is_active)
+VALUES
+-- Application Functionality Issue
+(1, 1, 1, 4, 4, 'P1', true), -- Button Click Has No Action
+(1, 1, 2, 3, 3, 'P2', true), -- Form Submission Fails
+(1, 2, 3, 3, 3, 'P2', true), -- Incorrect Calculation
+(1, 2, 4, 2, 3, 'P3', true), -- Workflow Not Triggered
+
+-- UI / UX Issue
+(2, 3, 5, 3, 3, 'P2', true), -- Infinite Loader
+(2, 4, 7, 2, 2, 'P3', true), -- Overlapping Elements
+(2, 4, 8, 2, 2, 'P4', true), -- Responsive Issue
+(2, 5, NULL, 2, 2, 'P3', true), -- Broken Button / Link (no sub sub category)
+
+-- Login & Access Issue
+(3, 6, 9, 4, 4, 'P1', true), -- Invalid Credentials Error
+(3, 6, 10, 3, 3, 'P2', true), -- Captcha Not Loading
+(3, 7, 11, 3, 2, 'P3', true), -- Auto Logout
+
+-- Authorization / Permission Issue
+(4, 8, 12, 3, 3, 'P2', true), -- Menu Not Visible
+(4, 9, 13, 4, 3, 'P1', true), -- Unauthorized Error
+
+-- Performance Issue
+(5, 10, 14, 3, 3, 'P2', true), -- Page Load > 10s
+(5, 11, 15, 2, 2, 'P3', true), -- Screen Freezes
+
+-- Application Crash / Error
+(6, 12, 16, 4, 4, 'P1', true), -- Crash After Login
+(6, 13, 17, 4, 4, 'P1', true), -- Null Pointer Exception
+
+-- Data Issue
+(7, 14, 18, 3, 3, 'P2', true), -- Incorrect Records
+(7, 15, 19, 3, 3, 'P2', true), -- Save Button Not Working
+
+-- Integration Issue
+(8, 16, 20, 3, 3, 'P2', true), -- Timeout Error
+(8, 17, 21, 4, 4, 'P1', true), -- Service Unreachable
+
+-- Notification Issue
+(9, 18, 22, 2, 2, 'P3', true), -- Email Delayed
+(9, 19, 23, 2, 2, 'P3', true), -- Push Notification Failed
+
+-- Other Issue
+(99, 99, 99, 2, 2, 'P4', true); -- Other / Not Listed
+
+
+insert into resolvex.sla_setting(priority_code, resolution_time_hours, created_at, updated_at)
+values
+('P4', 4, now(), now()),
+('P3', 8, now(), now()),
+('P2', 12, now(), now()),
+('P1', 24, now(), now());
