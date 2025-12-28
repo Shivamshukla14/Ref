@@ -1,0 +1,180 @@
+	<div class="d-flex align-items-center">
+
+
+
+		{% if is_cto %}
+		<button id="send-reminder-btn" class="btn btn-primary ms-2" style="background:#ff512f;border-color:#ff512f" title="Send Reminder" aria-label="Send Reminder">
+			<i class="bi bi-bell"></i>
+		</button>
+		{% endif %}
+
+
+
+	</div>
+
+
+
+
+	// CTO-only: Send Reminder button
+	(function(){
+		const btn = document.getElementById('send-reminder-btn');
+		if(!btn) return;
+		btn.addEventListener('click', function(){
+			if(!confirm('Send reminder emails to RAs for employees without certification requests in the last 90 days?')) return;
+			btn.disabled = true; const originalHTML = btn.innerHTML; btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+			fetch('/action/send-cert-reminders/', { headers: { 'X-Requested-With': 'XMLHttpRequest' }})
+				.then(r=>r.json())
+				.then(d=>{ if(!d.ok){ alert(d.error||'No reminders sent'); } else { alert(d.message || `Reminders sent to ${d.ras_notified||0} RA(s) for ${d.employees_reminded||0} employee(s).`); } })
+				.catch(()=>alert('Network error'))
+				.finally(()=>{ btn.disabled=false; btn.innerHTML=originalHTML; });
+		});
+	})();
+
+
+
+
+certification_reminder.html
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#333;">
+  <h3 style="margin:0 0 10px;">Certification Reminder</h3>
+  <p style="margin:0 0 8px;">Dear {{ ra_email }},</p>
+  <p style="margin:0 0 8px;">This is a reminder to initiate certification for the following employee(s) who do not have a Certification Request recorded in the last 90 days.</p>
+  <p style="margin:0 0 8px;">Initiated By: {{ initiated_by }}<br/>Timestamp: {{ ts }}</p>
+  <table cellpadding="6" cellspacing="0" style="border-collapse:collapse;border:1px solid #ddd;font-size:13px;margin-top:6px;">
+    <tr style="background:#f7f7f7;">
+      <th align="left" style="border:1px solid #ddd;">Emp Code</th>
+      <th align="left" style="border:1px solid #ddd;">Name</th>
+      <th align="left" style="border:1px solid #ddd;">Email</th>
+      <th align="left" style="border:1px solid #ddd;">Status</th>
+    </tr>
+    {% for h in rows %}
+    <tr>
+      <td style="border:1px solid #ddd;">{{ h.emp_code }}</td>
+      <td style="border:1px solid #ddd;">{{ h.first_name }} {{ h.last_name }}</td>
+      <td style="border:1px solid #ddd;">{{ h.business_email }}</td>
+      <td style="border:1px solid #ddd;">{{ h.employee_status }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  <p style="margin:10px 0 0;">Please complete the recertification, otherwise access may be blocked for the respective users.</p>
+  <p style="margin:8px 0 0;color:#777;font-size:12px;">This is an automated reminder from the IAM system.</p>
+</div>
+
+
+urls.py
+    path('action/send-cert-reminders/', views.send_cert_reminders, name='send-cert-reminders'),
+
+
+
+views.py
+@login_required
+def send_cert_reminders(request):
+    """CTO-only: Send reminder emails to RAs for employees lacking Certification Request in past 90 days.
+
+    Logic:
+    - Find all event_status rows with event_type='Certification Request' and triggered_at within last 90 days.
+    - Parse target employee emails from event_description (supports 'Certification requested for <email>' case-insensitive).
+    - From DUMMY_HRMS, select active NIDO employees (entity contains 'nido').
+    - Compute those without a recent Certification Request; group by their ra_email.
+    - Send one reminder email per RA listing their employees pending recertification (skip RA with no email).
+    - Log a 'CERTIFICATION_REMINDER_SENT' event per RA and append to event_history.
+    - Return JSON for AJAX or redirect fallback.
+    """
+    is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
+    # Authorization: CTO only
+    user_email = (request.user.email or '').lower()
+    hrms_row = next((r for r in get_hrms_list() if (r.get('business_email') or '').lower() == user_email), None)
+    external_designation = (hrms_row or {}).get('external_designation', '')
+    if external_designation != 'Chief Technology Officer':
+        return JsonResponse({'ok': False, 'error': 'Only CTO can send reminders.'}, status=403) if is_ajax else HttpResponseForbidden('Only CTO')
+
+    ninety_days_ago = timezone.now() - timezone.timedelta(days=90)
+    recent_desc = []
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT event_description
+                FROM event_status
+                WHERE event_type = %s
+                  AND triggered_at >= %s
+                """,
+                ['Certification Request', ninety_days_ago]
+            )
+            rows = cursor.fetchall() or []
+            recent_desc = [r[0] for r in rows if r and r[0]]
+    except Exception as e:
+        logger.error(f"Failed to read Certification Request events: {e}")
+
+    # Extract emails from description; tolerate case and minor variations.
+    email_pat = re.compile(r"certification\s+request(?:ed)?\s+for\s+([\w.+'%+-]+@[\w.-]+)", re.IGNORECASE)
+    requested_emails = set()
+    for desc in recent_desc:
+        m = email_pat.search(desc)
+        if m:
+            requested_emails.add(m.group(1).lower())
+
+    all_hrms = get_hrms_list()
+    def is_nido_entity(name: str | None) -> bool:
+        n = (name or '').strip().lower().replace('_',' ')
+        return 'nido' in n  # tolerate typos like 'nido_soluions'
+
+    active_nido = [r for r in all_hrms if (r.get('employee_status') == 'A' and is_nido_entity(r.get('entity_name')))]
+    # Employees needing reminder (no recent Certification Request)
+    pending = [r for r in active_nido if (r.get('business_email') or '').lower() not in requested_emails]
+
+    # Group by RA email
+    from collections import defaultdict
+    ra_groups = defaultdict(list)
+    for r in pending:
+        ra = (r.get('ra_email') or '').strip()
+        if not ra:
+            continue
+        ra_groups[ra].append(r)
+
+    ras_notified = 0
+    employees_reminded = 0
+    for ra_email, rows in ra_groups.items():
+        if not rows:
+            continue
+        context = {
+            'ra_email': ra_email,
+            'rows': [type('Obj', (), r) for r in rows],
+            'initiated_by': request.user.email,
+            'ts': timezone.now(),
+        }
+        html = render(request, 'emails/certification_reminder.html', context).content.decode('utf-8')
+        try:
+            if settings.DEBUG:
+                print(f"[Simulated] Reminder to {ra_email} for {len(rows)} employee(s)")
+            else:
+                _send_email('Certification Reminder', [ra_email], html)
+            ras_notified += 1
+            employees_reminded += len(rows)
+            ev_id = log_event(
+                event_type='CERTIFICATION_REMINDER_SENT',
+                triggered_by=request.user.email or '',
+                event_description=f'Reminder sent to RA {ra_email} for {len(rows)} employees without recent certification requests.',
+                status='SUCCESS',
+                severity_level='INFO',
+                user_role='CTO',
+                assigned_to='RA',
+                assigned_at=timezone.now(),
+                application='NIDO'
+            )
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO event_history (event_id, action, performed_by, performed_at, status_after_action)
+                    VALUES (%s, %s, %s, %s, %s)
+                    """,
+                    [ev_id, 'Reminder Email Sent', request.user.email or '', timezone.now(), 'SENT']
+                )
+        except Exception as e:
+            logger.error(f"Failed to send reminder to {ra_email}: {e}")
+
+    msg = 'No reminders to send.' if ras_notified == 0 else f'Reminders sent to {ras_notified} RA(s) for {employees_reminded} employee(s).'
+    if is_ajax:
+        return JsonResponse({'ok': True, 'message': msg, 'ras_notified': ras_notified, 'employees_reminded': employees_reminded})
+    return redirect('admin-dashboard')
+
+
