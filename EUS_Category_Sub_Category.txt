@@ -109,3 +109,13 @@ INSERT INTO resolvex.service_sub_sub_category
 	(52, 'Connectivity', 'EUS_CONNECTIVITY', true, 35),
 	(53, 'Between multiple Cities', 'EUS_SHIFT_BTWN_MUL_CITIES', true, 36);
 
+
+INSERT INTO resolvex.priority_mapping
+(service_category_id, service_sub_category_id, service_sub_sub_category_id,
+ impact, urgency, priority_code, is_active)
+VALUES
+-- Access issues (generally high impact)
+(10, 20, 24, 2, 2, 'P2', true),
+(10, 21, 25, 2, 2, 'P2', true),
+(10, 22, 26, 2, 2, 'P2', true),
+(10, 23, 27, 2, 2, 'P2', true);
