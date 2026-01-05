@@ -119,3 +119,8 @@ VALUES
 (10, 21, 25, 2, 2, 'P2', true),
 (10, 22, 26, 2, 2, 'P2', true),
 (10, 23, 27, 2, 2, 'P2', true);
+
+
+INSERT INTO resolvex.priority_mapping(
+	impact, urgency, priority_code, is_active, service_category_id, service_sub_category_id, service_sub_sub_category_id)
+	VALUES (2, 2, 'P2', true, 12, 26, 30);
