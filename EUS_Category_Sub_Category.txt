@@ -1,0 +1,111 @@
+INSERT INTO resolvex.service_category(
+	id, name, code, is_active, service_id)
+	VALUES (10,'Access', 'EUS_ACCESS', true, 2),
+	(11,'BlackBerry/Smartphone', 'EUS_PHONE', true, 2),
+	(12,'Laptop / Desktop', 'EUS_LPT_DSK', true, 2),
+	(13,'Laptop', 'EUS_LPT', true, 2),
+	(14,'Printer / Scanner', 'EUS_PRT_SCN', true, 2),
+	(15,'Server', 'EUS_SVR', true, 2),
+	(16,'Shifting', 'EUS_SHIFT', true, 2);
+
+INSERT INTO resolvex.service_sub_category
+	VALUES 
+	(20,'Sharepoint Access', 'EUS_SHAREPOINT_ACCESS', true, 10),
+	(21,'Internet Access for specific website', 'EUS_INTERNET_ACCESS', true, 10),
+	(22,'VPN', 'EUS_VPN', true, 10),
+	(23,'Network Folder', 'EUS_NETWORK_FOLDER', true, 10);
+
+INSERT INTO resolvex.service_sub_category
+	VALUES 
+	(24,'EMAIL', 'EUS_EMAIL', true, 11),
+	(25,'MDM(Intune Company Portal)', 'EUS_MDM', true, 11);
+
+INSERT INTO resolvex.service_sub_category
+	VALUES 
+	(26, 'Software', 'EUS_SOFTWARE', true,12),
+	(27, 'Windows', 'EUS_WINDOWS', true,12),
+	(28, 'Other activity', 'EUS_OTHER_ACTIVITY', true, 12),
+	(29, 'Keyboard / Mouse', 'EUS_KEYBOARD_MOUSE', true, 12);
+
+INSERT INTO resolvex.service_sub_category
+	VALUES 
+	(30, 'Exit User', 'EUS_EXIT_USER', true,13),
+	(31, 'Charging Issue', 'EUS_CHARGING_ISSUE', true, 13),
+	(32, 'Configuration', 'EUS_CONFIGURATION', true, 13);
+
+INSERT INTO resolvex.service_sub_category
+	VALUES 
+	(33, 'Software', 'EUS_PRNT_SCN_SOFTWARE', true,14),
+	(34, 'Scanner', 'EUS_SCANNER', true, 14);
+
+INSERT INTO resolvex.service_sub_category
+	VALUES 
+	(35, 'Connectivity', 'EUS_CONNECTIVITY', true,15);
+
+INSERT INTO resolvex.service_sub_category
+	VALUES 
+	(36, 'Between Multiple Cities', 'EUS_BETWEEN_CITIES', true,16);
+
+INSERT INTO resolvex.service_sub_category
+	VALUES
+	(37, 'Temporary Requirement', 'EUS_TEMPORARY_REQUIREMENT', true, 13);
+
+INSERT INTO resolvex.service_sub_sub_category
+	VALUES
+	(24, 'Sharepoint Access', 'EUS_SUB_SHAREPOINT_ACCESS', true, 20);
+
+INSERT INTO resolvex.service_sub_sub_category
+	VALUES
+	(25, 'Linkedin, etc', 'EUS_WEBSITE_ACCESS', true, 21),
+	(26, 'VPN Issue', 'EUS_VPN_ISSUE', true, 22),
+	(27, 'Folder Access Required', 'EUS_FOLDER_ACCESS', true, 23);
+
+INSERT INTO resolvex.service_sub_sub_category
+	VALUES
+	(28, 'Configuration', 'EUS_EMAIL_CONFIGURATION', true, 24),
+	(29, 'Outlook 365', 'EUS_OUTLOOK_365', true, 25);
+
+INSERT INTO resolvex.service_sub_sub_category
+	VALUES
+	(30, 'Chrome browser issue', 'EUS_CHROME_ISSUE', true, 26),
+	(31, 'Internet Explorer browser issue', 'EUS_INTERNET_EXP_ISSUE', true, 26),
+	(32, 'Email Access issue', 'EUS_EMAIL_ACCESS_ISSUE', true, 26),
+	(33, 'Add / Remove Email', 'EUS_ADD_REMOVE_EMAIL', true, 26),
+	(34, 'Email Archive required', 'EUS_EMAIL_ARCHIVE', true, 26),
+	(35, 'Email Configuration needed', 'EUS_EMAIL_CONFIGURATION', true, 26),
+	(36, 'Outlook Issue', 'EUS_OUTLOOK_ISSUE', true, 26),
+	(37, 'Internet Connectivity Issue', 'EUS_INTERNET_CONNECT_ISSUE', true, 26),
+	(38, 'Performance Issue', 'EUS_PERFORMANCE_ISSUE', true, 26),
+	(39, 'Sound Issue', 'EUS_SOUND_ISSUE', true, 26);
+
+INSERT INTO resolvex.service_sub_sub_category
+	VALUES
+	(40, 'Slow startup issue', 'EUS_SLOW_START_UP', true, 27),
+	(41, 'Login issue', 'EUS_LOGIN_ISSUE', true, 27),
+	(42, 'Others', 'EUS_WINDOWS_OTHERS', true, 27);
+
+
+INSERT INTO resolvex.service_sub_sub_category
+	VALUES
+	(43, 'ReInstall / Upgrade / Update', 'EUS_REINSTALL_UPGRADE_UPDATE', true, 28),
+	(44, 'Others', 'EUS_OTHERS', true, 29);
+
+INSERT INTO resolvex.service_sub_sub_category
+	VALUES
+	(45, 'Asset Surrender', 'EUS_ASSET_SURRENDER', true, 30),
+	(46, 'Charging Issue', 'EUS_CHARGE_ISSUE', true, 31),
+	(47, 'Configuration', 'EUS_LAPTOP_CONFIG', true, 32),
+	(48, 'Temporary Requirement', 'EUS_TEMP_REQ', true, 37);
+
+
+INSERT INTO resolvex.service_sub_sub_category
+	VALUES
+	(49, 'Mapping / Configuration / Installation', 'EUS_MAP_CONFIG_INSTALL', true, 33),
+	(50, 'Others', 'EUS_SOFTWARE_OTHERS', true, 33),
+	(51, 'Scanner not working', 'EUS_SCANNER_NOT_WORKING',true, 34);
+
+INSERT INTO resolvex.service_sub_sub_category
+	VALUES
+	(52, 'Connectivity', 'EUS_CONNECTIVITY', true, 35),
+	(53, 'Between multiple Cities', 'EUS_SHIFT_BTWN_MUL_CITIES', true, 36);
+
