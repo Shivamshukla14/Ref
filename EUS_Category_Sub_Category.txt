@@ -121,6 +121,13 @@ VALUES
 (10, 23, 27, 2, 2, 'P2', true);
 
 
+insert into resolvex.resolvex_role
+(name, created_at, updated_at, description)
+values
+('EUS1', now(), now(), 'End User Support Assignee L1'),
+('EUS2', now(), now(), 'End User Support Assignee L2'),
+('EUS_Engineer', now(), now(), 'End User Support Engineer');
 INSERT INTO resolvex.priority_mapping(
 	impact, urgency, priority_code, is_active, service_category_id, service_sub_category_id, service_sub_sub_category_id)
 	VALUES (2, 2, 'P2', true, 12, 26, 30);
+
